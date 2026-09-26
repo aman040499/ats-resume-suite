@@ -1,0 +1,117 @@
+{
+  "profile_name": "Aman Preet Singh - IT Support & AD Admin",
+  "personal": {
+    "name": "Aman Preet Singh Pahuja",
+    "email": "aman040499@gmail.com",
+    "phone": "(437)-928-1173",
+    "location": "Ontario, Canada",
+    "country": "Canada",
+    "linkedin": "linkedin.com/in/aman040499",
+    "github": "github.com/aman040499/Enterprise-AD-Lab-Portfolio",
+    "portfolio": ""
+  },
+  "summary": "IT Support Specialist with 2+ years of experience supporting 250+ endpoints in a production environment. Experienced in Windows, hardware, software, network connectivity, user access, Active Directory, Windows Server, Group Policy, ServiceNow, PowerShell, and Azure. Strong in incident troubleshooting, root-cause analysis, technical documentation, escalation, and cross-functional support, with an enterprise Windows/Active Directory lab demonstrating endpoint administration, security controls, remote management, and ITSM workflows.",
+  "domain": "IT Support & Infrastructure",
+  "target_job_titles": [
+    "On-Site Desktop Support Specialist",
+    "Computer Systems: Networking Technician",
+    "IT Support Specialist",
+    "Help Desk Specialist",
+    "IT Systems Administrator",
+    "Junior System Administrator",
+    "Junior IT Support / Sys Admin",
+    "Active Directory Administrator (AD Admin)"
+  ],
+  "seniority_level": "Mid (~2 yrs)",
+  "years_of_experience": 2,
+  "skills": {
+    "IT Support & ITSM": [
+      "Tier 1—2 Support",
+      "Incident Management",
+      "Service Requests",
+      "ServiceNow",
+      "Ticket Prioritization",
+      "Escalation",
+      "Root Cause Analysis",
+      "Technical Documentation"
+    ],
+    "Windows & Endpoint": [
+      "Windows 10/11",
+      "Windows Server 2022",
+      "Hardware & Software Troubleshooting",
+      "Peripheral Support",
+      "Endpoint Administration"
+    ],
+    "Identity & Infrastructure": [
+      "Active Directory",
+      "Group Policy",
+      "DNS",
+      "User & Group Administration",
+      "Organizational Units",
+      "NTFS",
+      "SMB/File Shares",
+      "Role-Based Access Control"
+    ],
+    "Microsoft & Automation": [
+      "Microsoft Azure",
+      "Azure Fundamentals (AZ-900)",
+      "PowerShell",
+      "Bash",
+      "Microsoft Excel"
+    ],
+    "Networking & Remote Support": [
+      "TCP/IP",
+      "DNS",
+      "DHCP",
+      "Network Troubleshooting",
+      "RDP",
+      "WinRM",
+      "VMware Workstation"
+    ]
+  },
+  "experience": [
+    {
+      "title": "On-site Desktop Support Specialist",
+      "company": "Westlake Corporation",
+      "dates": "June 2023 — November 2025",
+      "location": "Ontario",
+      "bullets": [
+        "Provided Tier 1—2 technical support for 250+ Windows endpoints, including warehouse workstations, shipping terminals, and office users in a production environment.",
+        "Diagnosed and resolved hardware, software, Windows, application, network connectivity, and user-access issues, minimizing operational downtime.",
+        "Administered Active Directory users, security groups, Organizational Units, and Group Policy to support user access, permissions, and endpoint administration.",
+        "Installed, configured, and troubleshot workstations, peripherals, warehouse technology, and business applications while supporting day-to-day operational requirements.",
+        "Investigated technical issues using structured troubleshooting and root-cause analysis, collaborating with cross-functional teams and escalating complex or high-impact issues when required.",
+        "Identified recurring technical issues and implemented preventive measures that contributed to a 15% reduction in repeat support requests; streamlined support processes contributing to a 20% reduction in ticket resolution time.",
+        "Documented troubleshooting procedures, technical solutions, and resolutions to improve knowledge sharing, consistency, and future incident resolution.",
+        "Provided technical support for scheduling and reporting applications, helping maintain reliable business operations and data accuracy."
+      ],
+      "achievements": []
+    }
+  ],
+  "projects": [
+    {
+      "title": "Enterprise Windows Server & Active Directory IT Infrastructure Lab",
+      "technologies": "Technologies: Windows Server 2022 • Active Directory • Windows 11 • Group Policy • PowerShell • ServiceNow • VMware • DNS • SMB/NTFS",
+      "bullets": [
+        "Built an enterprise-style IT environment using Windows Server 2022, Active Directory, DNS, Windows 11, Group Policy, and VMware Workstation.",
+        "Implemented AD users, security groups, Organizational Units, GPO security baselines, Windows Defender Firewall, and role-based access controls.",
+        "Configured SMB file shares, NTFS permissions, mapped network drives and performed endpoint administration using PowerShell, WinRM, CIM, and gpresult.",
+        "Created PowerShell automation for employee provisioning and IT health telemetry; documented a realistic ServiceNow incident involving network-share access, investigation, remediation, and resolution."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Canadore College",
+      "degree": "Computer Systems: Networking Technician",
+      "year": "December 2022",
+      "details": "Concentrations: IT Support • Data Analysis • Active Directory"
+    }
+  ],
+  "certifications": [
+    "Microsoft Certified: Azure Fundamentals (AZ-900)",
+    "Microsoft Azure Administrator (AZ-104) — In Progress"
+  ],
+  "achievements": [],
+  "raw_resume_text": ""
+}

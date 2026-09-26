@@ -1,0 +1,27 @@
+﻿# Virtual Environment
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Environment & Secrets
+.env
+*.env
+
+# Local outputs & previews
+output_resumes/*
+!output_resumes/.gitkeep
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+cloudflared.exe
+
+*.bak
+scratch/
+test_output/
+70%

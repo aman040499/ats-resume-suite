@@ -114,16 +114,16 @@ env_key = os.getenv("GEMINI_API_KEY", "").strip()
 session_key = st.session_state.get("session_api_key", "").strip()
 active_api_key = session_key or env_key
 
+is_on_premises = not bool(active_api_key)
+active_engine_name = "on_premises" if is_on_premises else "gemini"
+api_key = active_api_key if not is_on_premises else None
+
 st.sidebar.title("⚙️ Engine Status")
 
 if active_api_key:
     st.sidebar.success("🟢 AI Engine Active (No key required)")
-    active_engine_name = "gemini"
-    api_key = active_api_key
 else:
     st.sidebar.info("🟢 Zero-Cost Local Engine Active")
-    active_engine_name = "on_premises"
-    api_key = None
 
 with st.sidebar.expander("🔑 Advanced / Custom API Key (Optional)", expanded=False):
     custom_key = st.text_input(

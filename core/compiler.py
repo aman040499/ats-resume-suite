@@ -224,12 +224,15 @@ def compile_tailored_pdf(
     pagebreak_before_projects: bool = False,
     pagebreak_before_education: bool = False,
     pagebreak_before_certs: bool = False,
-    pagebreak_before_achievements: bool = False
+    pagebreak_before_achievements: bool = False,
+    custom_headings: Optional[Dict[str, str]] = None,
+    additional_sections: Optional[List[Dict[str, Any]]] = None
 ) -> str:
     """
     Compiles structured resume data into an ATS-compliant, beautifully formatted PDF
-    matching the modern, high-appeal visual layout of the candidate's original resume.
+    matching the fixed green-heading house layout of the candidate's resume.
     Preserves exact job titles, dates, companies, education concentrations, and projects.
+    Supports user-customized visible headings and additional sections.
     """
     os.makedirs(os.path.dirname(os.path.abspath(output_pdf_path)), exist_ok=True)
     typ_source_path = output_pdf_path.replace(".pdf", ".typ")
@@ -252,7 +255,9 @@ def compile_tailored_pdf(
         pagebreak_before_projects=pagebreak_before_projects,
         pagebreak_before_education=pagebreak_before_education,
         pagebreak_before_certs=pagebreak_before_certs,
-        pagebreak_before_achievements=pagebreak_before_achievements
+        pagebreak_before_achievements=pagebreak_before_achievements,
+        custom_headings=custom_headings,
+        additional_sections=additional_sections
     )
 
     with open(typ_source_path, "w", encoding="utf-8") as f:
@@ -290,13 +295,34 @@ def generate_typst_source(
     pagebreak_before_projects: bool = False,
     pagebreak_before_education: bool = False,
     pagebreak_before_certs: bool = False,
-    pagebreak_before_achievements: bool = False
+    pagebreak_before_achievements: bool = False,
+    custom_headings: Optional[Dict[str, str]] = None,
+    additional_sections: Optional[List[Dict[str, Any]]] = None
 ) -> str:
     pb_exp = pagebreak_before_experience or personal.get("pagebreak_before_experience", False)
     pb_proj = pagebreak_before_projects or personal.get("pagebreak_before_projects", False)
     pb_edu = pagebreak_before_education or personal.get("pagebreak_before_education", False)
     pb_certs = pagebreak_before_certs or personal.get("pagebreak_before_certs", False)
     pb_ach = pagebreak_before_achievements or personal.get("pagebreak_before_achievements", False)
+
+    # Initialize section headings (defaults to house standard, overridden by custom_headings)
+    headings = {
+        "summary": "PROFESSIONAL SUMMARY",
+        "skills": "TECHNICAL SKILLS",
+        "experience": "PROFESSIONAL EXPERIENCE",
+        "projects": "PROJECTS",
+        "education": "EDUCATION",
+        "certifications": "CERTIFICATIONS & LICENSES",
+        "achievements": "KEY HONORS & PROFESSIONAL RECOGNITION"
+    }
+    merged_heads = {}
+    if isinstance(personal.get("custom_headings"), dict):
+        merged_heads.update(personal.get("custom_headings"))
+    if isinstance(custom_headings, dict):
+        merged_heads.update(custom_headings)
+    for k, v in merged_heads.items():
+        if v and str(v).strip():
+            headings[str(k).lower().strip()] = str(v).strip().upper()
 
     name = escape_typst(personal.get("name", "Candidate"))
     email = escape_typst(personal.get("email", ""))
@@ -364,7 +390,7 @@ def generate_typst_source(
     if summary:
         typst_doc += f"""
 #v({section_spacing})
-#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[PROFESSIONAL SUMMARY]
+#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{escape_typst(headings["summary"])}]
 #v(-{section_spacing})
 {escape_typst(summary.strip())}
 """
@@ -374,7 +400,7 @@ def generate_typst_source(
     if clean_skills:
         typst_doc += f"""
 #v({section_spacing})
-#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[TECHNICAL SKILLS]
+#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{escape_typst(headings["skills"])}]
 #v(-{section_spacing})
 """
         for cat, items in clean_skills.items():
@@ -407,7 +433,7 @@ def generate_typst_source(
         typst_doc += f"""
 #block(breakable: true)[
 #v({section_spacing})
-#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[PROFESSIONAL EXPERIENCE]
+#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{escape_typst(headings["experience"])}]
 #v(-{section_spacing})
 {f_header} \\
 #v(-0.55em)
@@ -515,7 +541,9 @@ def generate_typst_source(
     if clean_projects:
         if pb_proj:
             typst_doc += "\n#pagebreak()\n"
-        proj_heading = "PROJECTS" if len(clean_projects) > 1 else "PROJECT"
+        proj_heading = headings.get("projects", "PROJECTS")
+        if len(clean_projects) == 1 and proj_heading == "PROJECTS":
+            proj_heading = "PROJECT"
 
         # Unified block for first project: binds heading, tech stack, and all bullets
         first_proj = clean_projects[0]
@@ -530,7 +558,7 @@ def generate_typst_source(
         typst_doc += f"""
 #block(breakable: true)[
 #v({section_spacing})
-#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{proj_heading}]
+#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{escape_typst(proj_heading)}]
 #v(-{section_spacing})
 """
         if p_title:
@@ -607,7 +635,7 @@ def generate_typst_source(
             typst_doc += f"""
 #block(breakable: false)[
 #v({section_spacing})
-#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[EDUCATION]
+#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{escape_typst(headings["education"])}]
 #v(-{section_spacing})
 {edu_line} \\
 """
@@ -645,7 +673,7 @@ def generate_typst_source(
             typst_doc += f"""
 #block(breakable: true)[
 #v({section_spacing})
-#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[CERTIFICATIONS & LICENSES]
+#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{escape_typst(headings["certifications"])}]
 #v(-{section_spacing})
 """
             for cert in clean_certs:
@@ -656,7 +684,7 @@ def generate_typst_source(
         if education or clean_certs:
             if pb_edu or pb_certs:
                 typst_doc += "\n#pagebreak()\n"
-            edu_heading = "EDUCATION & CERTIFICATIONS" if clean_certs else "EDUCATION"
+            edu_heading = f"{headings['education']} & {headings['certifications']}" if clean_certs else headings["education"]
 
             if education:
                 first_edu = education[0]
@@ -674,7 +702,7 @@ def generate_typst_source(
                 typst_doc += f"""
 #block(breakable: false)[
 #v({section_spacing})
-#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{edu_heading}]
+#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{escape_typst(edu_heading)}]
 #v(-{section_spacing})
 {edu_line} \\
 """
@@ -707,7 +735,7 @@ def generate_typst_source(
                 typst_doc += f"""
 #block(breakable: true)[
 #v({section_spacing})
-#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{edu_heading}]
+#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{escape_typst(edu_heading)}]
 #v(-{section_spacing})
 """
                 for cert in clean_certs:
@@ -728,11 +756,35 @@ def generate_typst_source(
             typst_doc += f"""
 #block(breakable: true)[
 #v({section_spacing})
-#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[KEY HONORS & PROFESSIONAL RECOGNITION]
+#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{escape_typst(headings["achievements"])}]
 #v(-{section_spacing})
 """
             for ach in clean_g_achs:
                 typst_doc += f"- {escape_typst(ach)}\n"
+            typst_doc += "]\n"
+
+    # 7. Additional / Custom Sections
+    if additional_sections:
+        for add_sec in additional_sections:
+            if not isinstance(add_sec, dict):
+                continue
+            sec_title = escape_typst(str(add_sec.get("title", "ADDITIONAL INFORMATION")).strip().upper())
+            sec_content = add_sec.get("content", [])
+            if not sec_title or not sec_content:
+                continue
+            typst_doc += f"""
+#block(breakable: true)[
+#v({section_spacing})
+#text(10.5pt, weight: "bold", fill: rgb("3F7F4A"))[{sec_title}]
+#v(-{section_spacing})
+"""
+            for item in sec_content:
+                item_str = str(item).strip()
+                if item_str.startswith(("-", "•", "*", "·")):
+                    clean_item = re.sub(r"^[-•*·\s]+", "", item_str).strip()
+                    typst_doc += f"- {escape_typst(clean_item)}\n"
+                else:
+                    typst_doc += f"{escape_typst(item_str)} \\\n"
             typst_doc += "]\n"
 
     return typst_doc

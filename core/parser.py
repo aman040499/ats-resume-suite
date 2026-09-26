@@ -164,7 +164,7 @@ def parse_resume_profile(
                 data["llm_status"] = "success"
                 # Ensure certifications, achievements, and projects exist
                 if not data.get("certifications") or not data.get("projects"):
-                    _, loc_projs, loc_edu, certs, achs, _, _ = extract_full_candidate_history(raw_text)
+                    loc_exp, loc_projs, loc_edu, certs, achs, _, _, loc_custom_heads, loc_add_secs = extract_full_candidate_history(raw_text)
                     if not data.get("certifications"):
                         data["certifications"] = certs
                     if not data.get("achievements"):
@@ -173,6 +173,10 @@ def parse_resume_profile(
                         data["projects"] = loc_projs
                     if not data.get("education") and loc_edu:
                         data["education"] = loc_edu
+                    if not data.get("custom_headings"):
+                        data["custom_headings"] = loc_custom_heads
+                    if not data.get("additional_sections"):
+                        data["additional_sections"] = loc_add_secs
                 if pdf_links:
                     for lk in pdf_links:
                         if "linkedin.com" in lk.lower() and not data["personal"].get("linkedin"):
@@ -209,14 +213,18 @@ def _extract_clean_explicit_titles(raw_text: str) -> List[str]:
         'specialist', 'analyst', 'advisor', 'banker', 'representative', 'officer', 'manager', 
         'administrator', 'admin', 'technician', 'engineer', 'consultant', 'associate', 'teller', 
         'underwriter', 'coordinator', 'clerk', 'auditor', 'accountant', 'developer', 'architect', 
-        'lead', 'supervisor', 'generalist', 'recruiter', 'director', 'investigator'
+        'lead', 'supervisor', 'generalist', 'recruiter', 'director', 'investigator',
+        'doctor', 'nurse', 'therapist', 'practitioner', 'pharmacist', 'scientist', 'researcher',
+        'designer', 'copywriter', 'strategist', 'marketer', 'buyer', 'planner', 'counsel',
+        'attorney', 'paralegal', 'executive', 'treasurer', 'controller', 'broker', 'trader',
+        'operator', 'instructor', 'teacher', 'professor', 'programmer', 'scientist'
     }
     blacklist_words = {
         'college', 'university', 'school', 'press', 'microsoft', 'google', 'ibm', 'amazon', 
-        'bex', 'toronto', 'ontario', 'canada', 'mississauga', 'brampton', 'summary', 'skills', 
-        'education', 'experience', 'interests', 'languages', 'certifications', 'curriculum', 
-        'resume', 'phone', 'email', 'linkedin', 'github', 'portfolio', 'incident', 'degree',
-        'diploma', 'bachelor', 'master', 'post graduate', 'certificate', 'institute'
+        'summary', 'skills', 'education', 'experience', 'interests', 'languages', 'certifications',
+        'curriculum', 'resume', 'phone', 'email', 'linkedin', 'github', 'portfolio', 'incident',
+        'degree', 'diploma', 'bachelor', 'master', 'post graduate', 'certificate', 'institute',
+        'references', 'activities', 'hobbies', 'awards'
     }
     found = []
     lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
@@ -233,56 +241,132 @@ def _extract_clean_explicit_titles(raw_text: str) -> List[str]:
                 if not any(b in p_strip.lower() for b in blacklist_words):
                     if 1 <= len(words) <= 5:
                         formatted = ' '.join(w.title() for w in p_strip.split())
-                        formatted = formatted.replace('It Support', 'IT Support').replace('It Systems', 'IT Systems')
+                        formatted = formatted.replace('It Support', 'IT Support').replace('It Systems', 'IT Systems').replace('Ui/Ux', 'UI/UX').replace('Qa', 'QA')
                         if formatted not in found:
                             found.append(formatted)
     return found
 
 def extract_full_candidate_history(raw_text: str):
     """
-    Parses full multi-employer career depth, projects, education details, certifications, and awards.
-    Preserves exact job titles, dates, companies, concentrations, and bullet accomplishments.
+    Universal multi-industry parser:
+    Extracts career depth, projects, education, certifications, awards, custom headings,
+    and preserves unknown/custom sections in additional_sections.
     """
     text = re.sub(r'[\ufffd\u2013\u2014]', '—', raw_text)
     raw_lines = [l.strip() for l in text.splitlines() if l.strip()]
     
     sec_kws = {
-        'SUMMARY': ['PROFESSIONAL SUMMARY', 'SUMMARY', 'PROFILE', 'ABOUT ME'],
-        'SKILLS': ['TECHNICAL SKILLS', 'SKILLS', 'SUMMARY OF SKILLS', 'CORE COMPETENCIES'],
-        'EXPERIENCE': ['PROFESSIONAL EXPERIENCE', 'WORK EXPERIENCE', 'EXPERIENCE', 'EMPLOYMENT HISTORY', 'WORK HISTORY'],
-        'PROJECTS': ['PROJECT', 'PROJECTS', 'TECHNICAL PROJECTS', 'KEY PROJECTS', 'ACADEMIC PROJECTS'],
-        'EDUCATION': ['EDUCATION & CERTIFICATIONS', 'EDUCATION AND CERTIFICATIONS', 'EDUCATION', 'ACADEMIC BACKGROUND'],
-        'CERTIFICATIONS': ['CERTIFICATIONS', 'LICENSES & CERTIFICATIONS', 'PROFESSIONAL DEVELOPMENT']
+        'SUMMARY': [
+            'PROFESSIONAL SUMMARY', 'SUMMARY', 'EXECUTIVE SUMMARY', 'SUMMARY STATEMENT',
+            'PROFILE', 'ABOUT ME', 'PERSONAL PROFILE', 'PROFESSIONAL PROFILE',
+            'CAREER SUMMARY', 'OBJECTIVE', 'CAREER OBJECTIVE', 'OVERVIEW',
+            'QUALIFICATIONS SUMMARY', 'EXECUTIVE PROFILE', 'HIGHLIGHTS OF QUALIFICATIONS'
+        ],
+        'SKILLS': [
+            'TECHNICAL SKILLS', 'SKILLS', 'CORE COMPETENCIES', 'CORE SKILLS',
+            'AREAS OF EXPERTISE', 'KEY SKILLS', 'SKILLS & COMPETENCIES',
+            'TECHNICAL EXPERTISE', 'TOOLKIT', 'PROFICIENCIES', 'COMPETENCIES',
+            'TECHNICAL PROFICIENCIES', 'SKILLS & EXPERTISE', 'PROFESSIONAL SKILLS',
+            'KEY COMPETENCIES', 'CORE QUALIFICATIONS', 'RELEVANT SKILLS'
+        ],
+        'EXPERIENCE': [
+            'PROFESSIONAL EXPERIENCE', 'WORK EXPERIENCE', 'EXPERIENCE',
+            'EMPLOYMENT HISTORY', 'WORK HISTORY', 'CAREER HISTORY',
+            'RELEVANT EXPERIENCE', 'EXPERIENCE & RESPONSIBILITIES',
+            'PROFESSIONAL BACKGROUND', 'CAREER HIGHLIGHTS', 'EMPLOYMENT'
+        ],
+        'PROJECTS': [
+            'PROJECTS', 'PROJECT', 'TECHNICAL PROJECTS', 'KEY PROJECTS',
+            'ACADEMIC PROJECTS', 'SELECTED PROJECTS', 'PERSONAL PROJECTS',
+            'NOTABLE PROJECTS', 'PORTFOLIO', 'PROJECT WORK'
+        ],
+        'EDUCATION': [
+            'EDUCATION & CERTIFICATIONS', 'EDUCATION AND CERTIFICATIONS',
+            'EDUCATION', 'ACADEMIC BACKGROUND', 'ACADEMIC QUALIFICATIONS',
+            'EDUCATIONAL BACKGROUND', 'QUALIFICATIONS', 'ACADEMIC CREDENTIALS',
+            'DEGREES & EDUCATION'
+        ],
+        'CERTIFICATIONS': [
+            'CERTIFICATIONS & LICENSES', 'CERTIFICATIONS AND LICENSES', 'LICENSES & CERTIFICATIONS',
+            'CERTIFICATIONS', 'LICENSES', 'CERTIFICATES', 'PROFESSIONAL CERTIFICATIONS',
+            'CREDENTIALS', 'PROFESSIONAL DEVELOPMENT', 'LICENSING & CREDENTIALS'
+        ],
+        'ACHIEVEMENTS': [
+            'KEY HONORS & PROFESSIONAL RECOGNITION', 'HONORS & AWARDS',
+            'AWARDS & HONORS', 'AWARDS', 'ACHIEVEMENTS', 'KEY ACHIEVEMENTS',
+            'ACCOMPLISHMENTS', 'HONORS', 'RECOGNITIONS', 'PROFESSIONAL HONORS'
+        ]
     }
     
     lines_by_sec = {
         'HEADER': [], 'SUMMARY': [], 'SKILLS': [], 'EXPERIENCE': [], 
-        'PROJECTS': [], 'EDUCATION': [], 'CERTIFICATIONS': []
+        'PROJECTS': [], 'EDUCATION': [], 'CERTIFICATIONS': [], 'ACHIEVEMENTS': []
     }
-    
+    custom_headings = {}
+    additional_sections = []
+    current_custom_sec = None
+
     current_sec = 'HEADER'
     for l in raw_lines:
         clean_upper = l.upper().strip(': ')
         matched_sec = None
+        matched_kw = None
+        matched_post = None
         for sec_name, keywords in sec_kws.items():
-            if any(clean_upper == kw or clean_upper.startswith(kw + ' ') or clean_upper.startswith(kw + ':') for kw in keywords):
-                matched_sec = sec_name
+            for kw in sorted(keywords, key=len, reverse=True):
+                if clean_upper == kw or clean_upper == kw + ':' or clean_upper.startswith(kw + '—') or clean_upper.startswith(kw + '-'):
+                    matched_sec = sec_name
+                    matched_kw = l.strip(': ')
+                    break
+                elif clean_upper.startswith(kw + ':'):
+                    matched_sec = sec_name
+                    matched_kw = kw
+                    matched_post = l.split(':', 1)[1].strip()
+                    break
+                elif clean_upper.startswith(kw + ' ') and len(clean_upper.split()) <= 4:
+                    matched_sec = sec_name
+                    matched_kw = l.strip(': ')
+                    break
+            if matched_sec:
                 break
+
         if matched_sec:
             current_sec = matched_sec
+            current_custom_sec = None
+            if matched_sec.lower() not in custom_headings:
+                custom_headings[matched_sec.lower()] = matched_kw
+            if matched_post:
+                lines_by_sec[matched_sec].append(matched_post)
         else:
-            lines_by_sec[current_sec].append(l)
+            # Check if this line looks like an unknown/custom section heading (e.g. PUBLICATIONS, VOLUNTEER, LANGUAGES)
+            is_potential_custom_heading = (
+                len(l.split()) <= 4 and len(l) <= 40
+                and (l.isupper() or l.istitle())
+                and not l.startswith(('•', '*', '-', '·'))
+                and not any(c in l for c in ['@', 'http', 'www', '|', '\\', '/', '(', ')'])
+                and not re.search(r'\b(19|20)\d{2}\b', l)
+                and current_sec in ['EDUCATION', 'CERTIFICATIONS', 'ACHIEVEMENTS', 'PROJECTS']
+            )
+            if is_potential_custom_heading:
+                current_custom_sec = l.strip(': ')
+                current_sec = 'ADDITIONAL'
+                additional_sections.append({'title': current_custom_sec, 'content': []})
+            else:
+                if current_sec == 'ADDITIONAL' and additional_sections:
+                    additional_sections[-1]['content'].append(l)
+                elif current_sec in lines_by_sec:
+                    lines_by_sec[current_sec].append(l)
 
     # 1. Summary
     extracted_summary = " ".join(lines_by_sec['SUMMARY']).strip()
 
-    # 2. Skills
+    # 2. Skills (Universal, data-driven categories)
     extracted_skills = {}
     current_cat = 'Core Competencies'
     merged_skill_lines = []
     for l in lines_by_sec['SKILLS']:
         clean = l.strip('•*-· \t')
-        is_new = l.startswith(('•', '*', '-', '·')) or (':' in clean and len(clean.split(':', 1)[0].split()) <= 4)
+        is_new = l.startswith(('•', '*', '-', '·')) or (':' in clean and len(clean.split(':', 1)[0].split()) <= 5)
         if is_new or not merged_skill_lines:
             merged_skill_lines.append(clean)
         else:
@@ -296,12 +380,17 @@ def extract_full_candidate_history(raw_text: str):
             parts = clean.split(':', 1)
             cat = parts[0].strip()
             items_str = parts[1].strip()
-            if len(cat.split()) <= 6 and len(cat) <= 50:
+            if any(ck in cat.lower() for ck in ['certif', 'licens', 'credential']):
+                c_items = [i.strip() for i in re.split(r'[,|•·;]', items_str) if i.strip()]
+                for it in c_items:
+                    lines_by_sec['CERTIFICATIONS'].append(it)
+                continue
+            if len(cat.split()) <= 6 and len(cat) <= 55:
                 current_cat = cat
-                items = [i.strip() for i in re.split(r'[,|•·]', items_str) if i.strip()]
+                items = [i.strip() for i in re.split(r'[,|•·;]', items_str) if i.strip()]
                 extracted_skills[current_cat] = items
                 continue
-        items = [i.strip() for i in re.split(r'[,|•·]', clean) if i.strip()]
+        items = [i.strip() for i in re.split(r'[,|•·;]', clean) if i.strip()]
         if current_cat in extracted_skills:
             extracted_skills[current_cat].extend(items)
         else:
@@ -346,7 +435,7 @@ def extract_full_candidate_history(raw_text: str):
                     p0 = parts[0].strip()
                     p1 = parts[1].strip() if len(parts) > 1 else ''
                     
-                    role_words = {'specialist', 'analyst', 'clerk', 'representative', 'officer', 'technician', 'engineer', 'lead', 'manager', 'associate', 'administrator', 'banker', 'advisor', 'consultant', 'developer'}
+                    role_words = {'specialist', 'analyst', 'clerk', 'representative', 'officer', 'technician', 'engineer', 'lead', 'manager', 'associate', 'administrator', 'banker', 'advisor', 'consultant', 'developer', 'nurse', 'doctor', 'accountant', 'director'}
                     if any(w in p0.lower() for w in role_words):
                         title, company = p0, p1
                     elif any(w in p1.lower() for w in role_words):
@@ -394,7 +483,6 @@ def extract_full_candidate_history(raw_text: str):
                     else:
                         curr_exp['achievements'][-1] += " " + clean_b
                 else:
-                    # Check if Key Achievements is accidentally glued inline into this line
                     if re.search(r'(?:Key\s+Achievements?|Key\s+Accomplishments?|Achievements?):?', clean_b, re.IGNORECASE):
                         parts = re.split(r'(?:Key\s+Achievements?|Key\s+Accomplishments?|Achievements?):?', clean_b, flags=re.IGNORECASE)
                         bullet_part = parts[0].strip('•*-· \t')
@@ -404,8 +492,6 @@ def extract_full_candidate_history(raw_text: str):
                         if ach_part:
                             curr_exp['achievements'].append(ach_part)
                             in_achievements = True
-                    elif any(k in clean_b for k in ['Award', 'Top-rated Performer', 'Employee of the Month', 'Control Champ']):
-                        curr_exp['achievements'].append(clean_b)
                     elif is_bullet_start:
                         curr_exp['bullets'].append(clean_b)
                     elif curr_exp['bullets']:
@@ -426,7 +512,7 @@ def extract_full_candidate_history(raw_text: str):
         clean_l = l.strip('•*-· \t')
         if not clean_l:
             continue
-        if clean_l.lower().startswith('technologies:'):
+        if clean_l.lower().startswith(('technologies:', 'tools:', 'tech stack:')):
             if curr_proj:
                 curr_proj['technologies'] = clean_l
         elif l.startswith(('•', '*', '-', '·')):
@@ -448,23 +534,28 @@ def extract_full_candidate_history(raw_text: str):
     certs = []
     global_achievements = []
     
-    skill_kws = ['microsoft & automation', 'networking & remote', 'it support & itsm', 'windows & endpoint', 'identity & infrastructure']
+    cert_pattern_words = [
+        'certified', 'certif', 'license', 'licensure', 'az-', 'sc-', 'ms-', 'comptia', 
+        'security+', 'network+', 'a+', 'ccna', 'cisco', 'aws', 'itil', 'pmp', 'capm',
+        'cpa', 'cfa', 'series 7', 'series 63', 'frm', 'csc', 'cams', 'acca', 'cisa',
+        'rn', 'bls', 'acls', 'cpr', 'cna', 'nclex', 'six sigma', 'scrum', 'csm',
+        'hubspot', 'google analytics', 'salesforce'
+    ]
     
     for l in edu_lines:
         clean_l = l.strip('•*-· \t')
-        if not clean_l or any(sk in clean_l.lower() for sk in skill_kws):
+        if not clean_l:
             continue
-        if any(k in clean_l.lower() for k in ['certified', 'certif', 'license', 'az-', 'sc-', 'ms-', 'comptia', 'security+', 'network+', 'a+', 'ccna', 'cisco', 'aws', 'itil', 'pmp']):
+        if any(k in clean_l.lower() for k in cert_pattern_words):
             sub_certs = re.split(r'[•·]', clean_l)
             for sc in sub_certs:
                 s_strip = sc.strip()
-                if s_strip and any(w in s_strip.lower() for w in ['certified', 'certif', 'fundamentals', 'administrator', 'az-', 'sc-', 'comptia', 'security+', 'network+', 'a+', 'ccna', 'itil', 'aws', 'in progress']):
-                    if not any(x in s_strip.lower() for x in [', powershell', ', microsoft excel', 'concentrations:']):
-                        certs.append(s_strip)
-        elif any(k in clean_l.lower() for k in ['concentrations:', 'focus:', 'coursework:']):
+                if s_strip and len(s_strip) > 3 and not any(x in s_strip.lower() for x in ['concentrations:', 'focus:', 'coursework:']):
+                    certs.append(s_strip)
+        elif any(k in clean_l.lower() for k in ['concentrations:', 'focus:', 'coursework:', 'honors:', 'minor:']):
             if education:
                 education[-1]['details'] = clean_l
-        elif any(k in clean_l.lower() for k in ['college', 'university', 'institute', 'school', 'academy']):
+        elif any(k in clean_l.lower() for k in ['college', 'university', 'institute', 'school', 'academy', 'bachelor', 'master', 'phd', 'doctorate', 'diploma', 'associate', 'degree', 'b.sc', 'm.sc', 'b.a', 'm.a', 'b.eng', 'b.tech', 'mba', 'b.com', 'm.com']):
             parts = re.split(r'[—–\-\|]', clean_l)
             yr_m = re.search(r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}|\b(19|20)\d{2}\b)', clean_l, re.I)
             yr = yr_m.group(0) if yr_m else ''
@@ -475,12 +566,23 @@ def extract_full_candidate_history(raw_text: str):
                 deg = re.sub(r'\(.*?\)', '', deg).strip(' |—–-')
                 education.append({'institution': inst, 'degree': deg, 'year': yr, 'details': ''})
             else:
-                education.append({'institution': clean_l, 'degree': 'Diploma / Degree', 'year': yr, 'details': ''})
+                education.append({'institution': clean_l, 'degree': 'Degree / Diploma', 'year': yr, 'details': ''})
 
     for l in lines_by_sec['CERTIFICATIONS']:
         clean_c = l.strip('•*-· \t')
-        if clean_c and len(clean_c) > 5:
-            certs.append(clean_c)
+        if clean_c and len(clean_c) > 2:
+            if ',' in clean_c and not any(deg_w in clean_c.lower() for deg_w in ['university', 'college', 'institute', 'school']):
+                for sub_c in clean_c.split(','):
+                    s_c = sub_c.strip()
+                    if s_c and len(s_c) > 2:
+                        certs.append(s_c)
+            else:
+                certs.append(clean_c)
+
+    for l in lines_by_sec['ACHIEVEMENTS']:
+        clean_a = l.strip('•*-· \t')
+        if clean_a and len(clean_a) > 3:
+            global_achievements.append(clean_a)
 
     # Deduplicate certs
     seen_certs = set()
@@ -490,34 +592,94 @@ def extract_full_candidate_history(raw_text: str):
             seen_certs.add(c.lower())
             deduped_certs.append(c)
 
-    return experience, projects, education, deduped_certs, global_achievements, extracted_summary, cleaned_skills
+    return experience, projects, education, deduped_certs, global_achievements, extracted_summary, cleaned_skills, custom_headings, additional_sections
 
 def universal_on_premises_parser(raw_text: str) -> Dict[str, Any]:
     lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
 
-    # 1. Contact & Location
-    email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", raw_text)
-    phone_match = re.search(r"(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}", raw_text)
-    linkedin_match = re.search(r"(https?://)?(www\.)?linkedin\.com/in/[\w\-]+", raw_text, re.IGNORECASE)
+    # 1. Contact & Location (Universal International Support)
+    email_match = re.search(r"[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}", raw_text)
+    
+    # Support North American & International phone numbers (+1, +44, +91, +61, +49, standard 10-digit, etc.)
+    phone_candidates = re.findall(r'(?:(?:\+|00)\d{1,3}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,5}\b', raw_text[:1500])
+    phone_val = ""
+    for pc in phone_candidates:
+        digits = re.sub(r'\D', '', pc)
+        if 9 <= len(digits) <= 15:
+            phone_val = pc.strip(' -.,|')
+            break
+    if not phone_val:
+        # Fallback to standard North American pattern
+        fallback_p = re.search(r"(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}", raw_text[:1500])
+        if fallback_p:
+            phone_val = fallback_p.group(0).strip()
 
+    linkedin_match = re.search(r"(https?://)?(www\.)?linkedin\.com/in/[\w\-]+", raw_text, re.IGNORECASE)
+    github_match = re.search(r"(https?://)?(www\.)?github\.com/[\w\-]+(/[\w\-]+)?", raw_text, re.IGNORECASE)
+    github_val = github_match.group(0) if github_match else ""
+
+    # Universal Name Detection
     name = "Candidate"
-    for l in lines[:6]:
+    for l in lines[:8]:
         clean_l = l.strip()
-        if len(clean_l.split()) in [2, 3, 4] and not any(c in clean_l for c in ["@", "http", "www", "/", "\\", "|", ":", ";"]):
-            if not any(kw in clean_l.lower() for kw in ["curriculum", "resume", "cv", "summary", "profile", "contact", "phone", "email"]):
-                name = clean_l
+        # Clean out common formatting noise
+        test_str = re.sub(r'[*_#]', '', clean_l).strip()
+        if len(test_str.split()) in [2, 3, 4] and not any(c in test_str for c in ["@", "http", "www", "/", "\\", "|", ":", ";"]):
+            if not any(kw in test_str.lower() for kw in ["curriculum", "resume", "cv", "summary", "profile", "contact", "phone", "email", "address", "portfolio"]):
+                if not re.search(r'\b\d{4}\b', test_str):
+                    name = test_str
+                    break
+
+    # Dynamic Location & Country Detection
+    detected_country = "Canada" if any(c in raw_text for c in ["Ontario", "Toronto", "Canada", "Vancouver", "Montreal", "Calgary", "Ottawa", "Brampton", "Mississauga", "437", "416", "647", "905"]) else (
+        "USA" if any(c in raw_text for c in ["USA", "United States", "New York", "California", "San Francisco", "Austin", "Seattle", "Chicago", "Texas", "Florida"]) else (
+            "United Kingdom" if any(c in raw_text for c in ["UK", "United Kingdom", "London", "Manchester", "Birmingham", "+44"]) else (
+                "India" if any(c in raw_text for c in ["India", "Bangalore", "Bengaluru", "Mumbai", "Delhi", "Hyderabad", "Pune", "+91"]) else (
+                    "Australia" if any(c in raw_text for c in ["Australia", "Sydney", "Melbourne", "Brisbane", "+61"]) else "Remote"
+                )
+            )
+        )
+    )
+
+    detected_location = ""
+    # Check lines near header for explicit City, State/Province/Country
+    for l in lines[1:8]:
+        if any(kw in l for kw in [",", "|"]) and not any(c in l for c in ["@", "http", "www"]):
+            parts = [p.strip() for p in re.split(r'[,|•]', l) if p.strip()]
+            for p in parts:
+                if any(w in p.lower() for w in ["ontario", "toronto", "vancouver", "calgary", "montreal", "brampton", "mississauga", "new york", "san francisco", "austin", "seattle", "chicago", "london", "sydney", "remote", "texas", "california", "florida", "bangalore", "mumbai"]):
+                    detected_location = p
+                    break
+            if detected_location:
                 break
 
-    detected_country = "Canada" if any(c in raw_text for c in ["Ontario", "Toronto", "Canada", "Vancouver", "Montreal", "Calgary", "Ottawa", "Brampton", "Mississauga", "437", "416", "647", "905"]) else "USA"
-    detected_location = f"Ontario, {detected_country}" if detected_country == "Canada" else "Remote"
-    loc_match = re.search(r"\b(Ontario|Toronto|Vancouver|Calgary|Montreal|Brampton|Mississauga|New York|San Francisco|Austin|Seattle|Chicago|London)\b", raw_text, re.IGNORECASE)
-    if loc_match:
-        detected_location = f"{loc_match.group(0)}, {detected_country}"
+    if not detected_location:
+        loc_match = re.search(r"\b(Ontario|Toronto|Vancouver|Calgary|Montreal|Brampton|Mississauga|New York|San Francisco|Austin|Seattle|Chicago|London|Sydney|Melbourne|Bangalore|Mumbai|Remote)\b", raw_text, re.IGNORECASE)
+        if loc_match:
+            detected_location = f"{loc_match.group(0)}, {detected_country}" if detected_country not in ["Remote", ""] else loc_match.group(0)
+        else:
+            detected_location = f"{detected_country}" if detected_country != "Remote" else "Remote"
 
     explicit_titles = _extract_clean_explicit_titles(raw_text)
 
-    # 2. Comprehensive Domain Scoring
+    # 2. Comprehensive Multi-Industry Domain Scoring (12 Domains)
     domain_keywords = {
+        "Software Engineering": [
+            "python", "javascript", "typescript", "react", "fastapi", "django", "backend",
+            "frontend", "full stack", "fullstack", "software engineer", "microservices", "docker",
+            "kubernetes", "sql", "postgresql", "mongodb", "graphql", "node.js", "java", "c++", "c#"
+        ],
+        "Data Science & AI Analytics": [
+            "machine learning", "deep learning", "nlp", "llm", "pandas", "numpy", "pytorch",
+            "tensorflow", "data scientist", "data analyst", "power bi", "tableau", "bigquery",
+            "data pipeline", "etl", "scikit-learn", "statistics", "data engineering"
+        ],
+        "IT Support & Infrastructure": [
+            "active directory", "windows server", "group policy", "gpo", "servicenow", "help desk",
+            "desktop support", "tier 1", "tier 2", "tier 1-2", "powershell", "dns", "dhcp",
+            "azure ad", "endpoint", "incident management", "troubleshooting", "hardware", "office 365",
+            "systems administrator", "network administrator"
+        ],
         "Banking & Lending Operations": [
             "loan", "loans", "lending", "loan servicing", "loan modification", "commercial loan",
             "business loan", "credit analysis", "risk assessment", "due diligence", "collections",
@@ -526,27 +688,45 @@ def universal_on_premises_parser(raw_text: str) -> Dict[str, Any]:
             "deposits", "cash handling", "lines of credit", "reconciliation", "underwriting",
             "financial services representative", "natwest", "rbc", "td bank", "bmo", "scotia", "cibc"
         ],
-        "Accounting & Finance": [
+        "Accounting & Corporate Finance": [
             "accounting", "accountant", "general ledger", "accounts payable", "accounts receivable",
             "bank reconciliation", "financial reporting", "financial statements", "gaap", "ifrs",
-            "audit", "tax", "bookkeeper", "bookkeeping", "payroll", "quickbooks", "invoice processing"
+            "audit", "tax", "bookkeeper", "bookkeeping", "payroll", "quickbooks", "invoice processing",
+            "cpa", "financial analyst", "variance analysis"
         ],
-        "IT Support & Infrastructure": [
-            "active directory", "windows server", "group policy", "gpo", "servicenow", "help desk",
-            "desktop support", "tier 1", "tier 2", "tier 1-2", "powershell", "dns", "dhcp",
-            "azure ad", "endpoint", "incident management", "troubleshooting", "hardware", "office 365"
+        "Healthcare & Clinical Operations": [
+            "nursing", "nurse", "patient care", "clinical", "hospital", "healthcare", "triage",
+            "medication administration", "vital signs", "electronic health records", "ehr", "emr",
+            "epic", "cerner", "bls", "acls", "cpr", "rn", "registered nurse", "icu", "emergency department"
         ],
-        "Software Engineering": [
-            "python", "javascript", "typescript", "react", "fastapi", "django", "backend",
-            "frontend", "full stack", "fullstack", "software engineer", "microservices", "docker", "kubernetes", "sql"
+        "Marketing & Digital Growth": [
+            "digital marketing", "seo", "sem", "content strategy", "social media", "google analytics",
+            "campaign management", "email marketing", "growth marketing", "brand awareness",
+            "conversion rate", "hubspot", "copywriting", "lead generation"
         ],
-        "Human Resources": [
+        "Sales & Business Development": [
+            "account executive", "business development", "b2b sales", "cold calling", "prospecting",
+            "pipeline management", "salesforce", "crm", "closing deals", "client relationship",
+            "quota attainment", "lead qualification", "negotiation"
+        ],
+        "Human Resources & Talent Acquisition": [
             "human resources", "talent acquisition", "recruiter", "recruiting", "onboarding",
-            "hr generalist", "employee relations", "hris", "workday"
+            "hr generalist", "employee relations", "hris", "workday", "benefits administration",
+            "performance management", "talent development"
         ],
-        "Operations & Project Management": [
-            "project manager", "pmp", "scrum master", "agile", "operations manager",
-            "supply chain", "logistics", "procurement", "process improvement"
+        "Operations & Supply Chain": [
+            "supply chain", "logistics", "procurement", "inventory management", "warehouse",
+            "operations manager", "process improvement", "lean", "six sigma", "vendor management",
+            "project manager", "pmp", "agile", "scrum"
+        ],
+        "Legal & Regulatory Compliance": [
+            "legal counsel", "compliance officer", "regulatory compliance", "contract review",
+            "due diligence", "risk management", "litigation", "corporate governance", "paralegal",
+            "data privacy", "gdpr", "hipaa"
+        ],
+        "Engineering (Civil / Mechanical / Electrical)": [
+            "mechanical engineering", "electrical engineering", "civil engineering", "autocad",
+            "solidworks", "schematics", "pcb", "structural analysis", "manufacturing", "plc"
         ]
     }
 
@@ -559,121 +739,39 @@ def universal_on_premises_parser(raw_text: str) -> Dict[str, Any]:
     top_domain, max_score = sorted_domains[0]
 
     if max_score == 0:
-        top_domain = "Banking & Lending Operations" if any(b in lower_text for b in ["bank", "td", "rbc", "bmo", "cibc", "loan", "credit"]) else "Professional Services"
+        if explicit_titles:
+            t0 = explicit_titles[0].lower()
+            if any(w in t0 for w in ["developer", "engineer", "programmer"]):
+                top_domain = "Software Engineering"
+            elif any(w in t0 for w in ["accountant", "accounting", "finance"]):
+                top_domain = "Accounting & Corporate Finance"
+            elif any(w in t0 for w in ["nurse", "clinical", "medical"]):
+                top_domain = "Healthcare & Clinical Operations"
+            elif any(w in t0 for w in ["bank", "lending", "credit"]):
+                top_domain = "Banking & Lending Operations"
+            else:
+                top_domain = "Professional Services"
+        else:
+            top_domain = "Professional Services"
 
-    skills_by_domain = {
-        "Banking & Lending Operations": {
-            "Lending, Credit & Loan Operations": [
-                "Commercial Loans", "Business Loans", "Loan Servicing", "Loan Modifications", "Loan Processing",
-                "Credit Analysis", "Risk Assessment", "Due Diligence", "Collections & Delinquency",
-                "Payment Resolution", "Loan Underwriting", "Mortgages", "Lines of Credit", "Personal Lending",
-                "Operational Controls", "Portfolio Reporting"
-            ],
-            "Banking & Financial Advisory": [
-                "Personal Banker", "Financial Advisory", "Retail Banking", "Commercial Banking",
-                "Deposits", "Cash Handling", "Wire Transfers", "Account Openings", "Wealth Management",
-                "Mutual Funds", "RRSP", "TFSA", "GIC", "Customer Relationship Management"
-            ],
-            "Compliance & Risk Regulations": [
-                "AML", "Anti-Money Laundering", "KYC", "Know Your Customer", "FINTRAC",
-                "Fraud Prevention", "Regulatory Compliance", "Risk Management", "Auditing", "Quality Controls"
-            ],
-            "Banking Tools & Accounting Systems": [
-                "LoanIQ", "Microsoft Excel", "Power BI", "Salesforce", "Microsoft Dynamics 365",
-                "MicroStrategy", "CRM Systems", "Accounts Payable", "General Ledger", "Bank Reconciliations"
-            ]
-        },
-        "Accounting & Finance": {
-            "Financial & Cost Accounting": [
-                "General Ledger", "Accounts Payable", "Accounts Receivable", "Bank Reconciliations",
-                "Financial Statements", "Journal Entries", "Financial Reporting", "Budgeting",
-                "Variance Analysis", "Tax Preparation", "Payroll Processing", "Invoice Processing"
-            ],
-            "Accounting Standards & Tools": [
-                "GAAP", "IFRS", "Internal Controls", "QuickBooks", "SAP", "Microsoft Excel", "Power BI"
-            ]
-        },
-        "IT Support & Infrastructure": {
-            "IT Support & ITSM": [
-                "Tier 1 Support", "Tier 2 Support", "Tier 1-2 Support", "Incident Management",
-                "Service Requests", "ServiceNow", "Ticket Prioritization", "Root Cause Analysis",
-                "Escalation Management", "Technical Documentation", "ITSM", "Help Desk", "Desktop Support"
-            ],
-            "Windows, Directory & Endpoint": [
-                "Windows 10/11", "Windows Server 2022", "Windows Server", "Active Directory",
-                "Group Policy", "GPO", "DNS", "DHCP", "PowerShell", "Azure AD", "Hardware Troubleshooting",
-                "Endpoint Administration", "Remote Management"
-            ]
-        },
-        "Software Engineering": {
-            "Languages & Frameworks": [
-                "Python", "JavaScript", "TypeScript", "React", "Node.js", "FastAPI", "Django", "SQL", "PostgreSQL"
-            ],
-            "DevOps & Architecture": [
-                "Docker", "Kubernetes", "AWS", "CI/CD", "Git", "Microservices", "REST APIs"
-            ]
-        }
+    # Dynamic Inferred Roles
+    domain_roles_map = {
+        "Software Engineering": ["Software Engineer", "Full Stack Developer", "Backend Developer", "Frontend Developer", "DevOps Engineer"],
+        "Data Science & AI Analytics": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "BI Analyst", "Data Engineer"],
+        "IT Support & Infrastructure": ["IT Support Specialist", "Systems Administrator", "Help Desk Specialist", "Network Administrator", "Cloud Support Engineer"],
+        "Banking & Lending Operations": ["Lending Operations Specialist", "Loan Servicing Specialist", "Commercial Lending Analyst", "Credit Analyst", "Personal Banker"],
+        "Accounting & Corporate Finance": ["Staff Accountant", "Financial Analyst", "Senior Accountant", "Accounts Payable Specialist", "Bookkeeper"],
+        "Healthcare & Clinical Operations": ["Registered Nurse (RN)", "Clinical Coordinator", "Healthcare Specialist", "Nurse Practitioner", "Clinical Nurse"],
+        "Marketing & Digital Growth": ["Marketing Specialist", "Digital Marketing Manager", "Growth Marketer", "Content Marketing Strategist", "SEO Specialist"],
+        "Sales & Business Development": ["Account Executive", "Business Development Manager", "Sales Representative", "Client Relationship Manager"],
+        "Human Resources & Talent Acquisition": ["Human Resources Specialist", "Talent Acquisition Partner", "HR Generalist", "Recruiter", "HR Coordinator"],
+        "Operations & Supply Chain": ["Operations Coordinator", "Supply Chain Analyst", "Project Manager", "Logistics Coordinator", "Operations Manager"],
+        "Legal & Regulatory Compliance": ["Compliance Specialist", "Legal Counsel", "Risk & Compliance Analyst", "Paralegal", "Corporate Governance Officer"],
+        "Engineering (Civil / Mechanical / Electrical)": ["Project Engineer", "Mechanical Engineer", "Electrical Engineer", "Design Engineer", "Systems Engineer"],
+        "Professional Services": ["Operations Specialist", "Project Coordinator", "Business Analyst", "Consultant", "Client Services Associate"]
     }
 
-    active_bank = skills_by_domain.get(top_domain, skills_by_domain["Banking & Lending Operations"])
-    detected_skills = {}
-    for cat, sk_list in active_bank.items():
-        matched = []
-        for s in sk_list:
-            if re.search(rf"(?<!\w){re.escape(s)}(?!\w)", raw_text, re.IGNORECASE):
-                matched.append(s)
-        if matched:
-            detected_skills[cat] = list(dict.fromkeys(matched))
-
-    if top_domain == "Banking & Lending Operations":
-        inferred_roles = [
-            "Lending Operations Specialist",
-            "Loan Servicing Specialist",
-            "Commercial Lending Analyst",
-            "Credit Analyst",
-            "Personal Banker",
-            "Financial Services Representative",
-            "Financial Advisor",
-            "Banking Operations Specialist",
-            "Accounting Clerk"
-        ]
-    elif top_domain == "Accounting & Finance":
-        inferred_roles = [
-            "Staff Accountant",
-            "Financial Analyst",
-            "Accounts Payable / Receivable Specialist",
-            "Senior Accountant",
-            "Bookkeeper",
-            "Accounting Clerk"
-        ]
-    elif top_domain == "IT Support & Infrastructure":
-        inferred_roles = [
-            "IT Support Specialist",
-            "Help Desk Specialist",
-            "IT Systems Administrator",
-            "Junior System Administrator",
-            "Junior IT Support / Sys Admin",
-            "Active Directory Administrator (AD Admin)",
-            "Desktop Support Specialist"
-        ]
-    elif top_domain == "Human Resources":
-        inferred_roles = [
-            "Human Resources Specialist",
-            "Recruiter / Talent Acquisition",
-            "HR Generalist",
-            "HR Coordinator"
-        ]
-    elif top_domain == "Operations & Project Management":
-        inferred_roles = [
-            "Project Manager",
-            "Operations Coordinator",
-            "Operations Manager",
-            "Supply Chain Analyst"
-        ]
-    elif top_domain == "Software Engineering":
-        inferred_roles = ["Software Engineer", "Full Stack Developer", "Backend Developer"]
-    else:
-        inferred_roles = ["Banking Specialist", "Financial Services Representative", "Operations Analyst"]
+    inferred_roles = domain_roles_map.get(top_domain, ["Professional Consultant", "Operations Specialist", "Business Analyst"])
 
     final_titles = []
     seen_lower = set()
@@ -687,35 +785,41 @@ def universal_on_premises_parser(raw_text: str) -> Dict[str, Any]:
     exp_match = re.search(r"(\d+)\+?\s*years?\s+of\s+experience", raw_text, re.IGNORECASE)
     if exp_match:
         years = int(exp_match.group(1))
-    elif re.search(r"\b(Senior|Lead|Manager)\b", raw_text, re.IGNORECASE):
+    elif re.search(r"\b(Senior|Lead|Manager|Director|Principal)\b", raw_text, re.IGNORECASE):
         years = 5
 
     seniority = f"Senior (~{years} yrs)" if years >= 5 else f"Mid (~{years} yrs)"
 
-    # Extract complete multi-employer work history, education, certifications, awards, projects, summary, and skills
-    full_experience, projects, full_education, certifications, achievements, extracted_summary, cleaned_skills = extract_full_candidate_history(raw_text)
+    # Extract complete multi-employer work history, education, certifications, awards, projects, summary, skills, custom headings, and additional sections
+    full_experience, projects, full_education, certifications, achievements, extracted_summary, cleaned_skills, custom_headings, additional_sections = extract_full_candidate_history(raw_text)
 
-    github_match = re.search(r"(https?://)?(www\.)?github\.com/[\w\-]+(/[\w\-]+)?", raw_text, re.IGNORECASE)
-    github_val = github_match.group(0) if github_match else ""
-
-    final_skills = cleaned_skills if cleaned_skills else detected_skills
+    # Clean default skills if none extracted from resume text
+    if not cleaned_skills:
+        cleaned_skills = {
+            "Core Competencies": [t for t in final_titles[:6]]
+        }
 
     return {
         "personal": {
             "name": name,
             "email": email_match.group(0) if email_match else "",
-            "phone": phone_match.group(0) if phone_match else "",
+            "phone": phone_val,
             "location": detected_location,
             "country": detected_country,
             "linkedin": linkedin_match.group(0) if linkedin_match else "",
-            "github": github_val
+            "github": github_val,
+            "show_email": True,
+            "show_phone": True,
+            "show_location": True,
+            "show_linkedin": True,
+            "show_github": bool(github_val)
         },
         "summary": extracted_summary,
         "domain": top_domain,
         "target_job_titles": final_titles[:8],
         "seniority_level": seniority,
         "years_of_experience": years,
-        "skills": final_skills,
+        "skills": cleaned_skills,
         "experience": full_experience if full_experience else [
             {
                 "company": "Recent Employer",
@@ -733,5 +837,7 @@ def universal_on_premises_parser(raw_text: str) -> Dict[str, Any]:
             }
         ],
         "certifications": certifications,
-        "achievements": achievements
+        "achievements": achievements,
+        "custom_headings": custom_headings,
+        "additional_sections": additional_sections
     }

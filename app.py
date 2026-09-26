@@ -176,6 +176,7 @@ if profile is None:
                     if not raw_text.strip():
                         st.error("Could not extract text from this PDF. Please use the 'Paste Plain Text' tab.")
                     else:
+                        purge_resume_session_cache()
                         parsed = parse_resume_profile(raw_text, engine=active_engine_name, api_key=api_key, pdf_links=pdf_links)
                         st.session_state["resume_profile"] = parsed
                         st.session_state["raw_resume_text"] = raw_text
@@ -191,6 +192,7 @@ if profile is None:
                 st.error("Please paste substantial resume text (at least 40 characters).")
             else:
                 with st.spinner("Analyzing candidate background..."):
+                    purge_resume_session_cache()
                     parsed = parse_resume_profile(p_text, engine=active_engine_name, api_key=api_key)
                     st.session_state["resume_profile"] = parsed
                     st.session_state["raw_resume_text"] = p_text

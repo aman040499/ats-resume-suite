@@ -49,6 +49,8 @@ def recompile_resume_data(resume_data: Dict[str, Any], output_pdf_path: str) -> 
     resume_data["skills"] = sanitize_skills_dict(resume_data.get("skills", {}))
 
     sep_edu = resume_data.get("separate_education_and_certs", True)
+    custom_hd = resume_data.get("custom_headings")
+    add_secs = resume_data.get("additional_sections")
     try:
         compile_tailored_pdf(
             personal=pers,
@@ -69,7 +71,9 @@ def recompile_resume_data(resume_data: Dict[str, Any], output_pdf_path: str) -> 
             pagebreak_before_projects=resume_data.get("pagebreak_before_projects", False),
             pagebreak_before_education=resume_data.get("pagebreak_before_education", False),
             pagebreak_before_certs=resume_data.get("pagebreak_before_certs", False),
-            pagebreak_before_achievements=resume_data.get("pagebreak_before_achievements", False)
+            pagebreak_before_achievements=resume_data.get("pagebreak_before_achievements", False),
+            custom_headings=custom_hd,
+            additional_sections=add_secs
         )
     except Exception as e:
         print(f"[Resume Editor] Primary compilation note: {e}. Running sanitized fallback.")
@@ -96,7 +100,9 @@ def recompile_resume_data(resume_data: Dict[str, Any], output_pdf_path: str) -> 
             pagebreak_before_projects=resume_data.get("pagebreak_before_projects", False),
             pagebreak_before_education=resume_data.get("pagebreak_before_education", False),
             pagebreak_before_certs=resume_data.get("pagebreak_before_certs", False),
-            pagebreak_before_achievements=resume_data.get("pagebreak_before_achievements", False)
+            pagebreak_before_achievements=resume_data.get("pagebreak_before_achievements", False),
+            custom_headings=custom_hd,
+            additional_sections=add_secs
         )
 
     preview_imgs = render_pdf_preview_images(output_pdf_path)
@@ -547,11 +553,23 @@ def parse_typst_to_resume_dict(code: str, baseline: Optional[Dict[str, Any]] = N
         
     res["personal"] = pers
 
-    # 3. Section Slicing via Regex Headings
+    # 3. Section Slicing via Regex Headings (Dynamic & Semantic)
+    matches = list(re.finditer(r'#text\([^\[\]]*?(?:bold|rgb\("3F7F4A"\)|10\.5pt)[^\[\]]*?\)\s*\[([A-Za-z0-9\s&—\-/.,:]{3,60})\]', code))
+    if not matches:
+        matches = list(re.finditer(r'#text\([^\[\]]*\)\s*\[([A-Z\s&—\-/]{3,60})\]', code))
+
+    cand_name_clean = pers.get("name", "").strip().lower()
+    valid_matches = []
+    for m in matches:
+        h_cand = m.group(1).strip()
+        if cand_name_clean and h_cand.lower() == cand_name_clean:
+            continue
+        if h_cand.lower() in ["linkedin", "github", "portfolio", "email", "mobile"]:
+            continue
+        valid_matches.append(m)
+    matches = valid_matches
+
     sections = {}
-    pattern = r'#text\([^\[\]]*\)\[([A-Z\s&—\-/]{3,})\]'
-    matches = list(re.finditer(pattern, code))
-    
     for i, m in enumerate(matches):
         heading = m.group(1).strip()
         start = m.end()
@@ -561,15 +579,16 @@ def parse_typst_to_resume_dict(code: str, baseline: Optional[Dict[str, Any]] = N
         prev_end = matches[i-1].end() if i > 0 else 0
         pre_text = code[prev_end:m.start()]
         if "#pagebreak()" in pre_text:
-            if heading in ["PROFESSIONAL EXPERIENCE", "EXPERIENCE"]:
+            u_h = heading.upper()
+            if any(w in u_h for w in ["EXPERIENCE", "EMPLOYMENT", "WORK", "CAREER"]):
                 res["pagebreak_before_experience"] = True
-            elif heading in ["PROJECTS", "PROJECT", "TECHNICAL PROJECTS"]:
+            elif any(w in u_h for w in ["PROJECT", "PORTFOLIO"]):
                 res["pagebreak_before_projects"] = True
-            elif heading in ["EDUCATION", "EDUCATION & CERTIFICATIONS"]:
+            elif any(w in u_h for w in ["EDUCATION", "ACADEMIC"]):
                 res["pagebreak_before_education"] = True
-            elif heading in ["CERTIFICATIONS & LICENSES", "CERTIFICATIONS"]:
+            elif any(w in u_h for w in ["CERTIF", "LICENSE"]):
                 res["pagebreak_before_certs"] = True
-            elif heading in ["KEY HONORS & PROFESSIONAL RECOGNITION", "ACHIEVEMENTS"]:
+            elif any(w in u_h for w in ["HONOR", "AWARD", "ACHIEVEMENT", "RECOGNITION"]):
                 res["pagebreak_before_achievements"] = True
 
         body = code[start:end].strip()
@@ -579,185 +598,246 @@ def parse_typst_to_resume_dict(code: str, baseline: Optional[Dict[str, Any]] = N
         body = re.sub(r'(?:#v\([^)]*\)|#pagebreak\(\)|\s)+$', '', body).strip()
         sections[heading] = body
 
-    # 4. Summary
-    for h in ["PROFESSIONAL SUMMARY", "EXECUTIVE SUMMARY", "SUMMARY", "PROFESSIONAL EXECUTIVE SUMMARY"]:
-        if h in sections:
-            clean_summary = re.sub(r'#v\([^)]*\)', '', sections[h]).strip()
-            clean_summary = re.sub(r'^\s*\\\s*', '', clean_summary)
-            if clean_summary:
-                res["summary"] = clean_summary
-            break
+    res.setdefault("custom_headings", {})
+    categorized_sections = {
+        "summary": None,
+        "skills": None,
+        "experience": None,
+        "projects": None,
+        "education": None,
+        "certifications": None,
+        "achievements": None,
+        "additional": []
+    }
 
-    # 5. Technical Skills
-    for h in ["TECHNICAL SKILLS", "SKILLS"]:
-        if h in sections:
-            skills_dict = {}
-            current_cat = None
-            for line in sections[h].splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or line.startswith("]"):
-                    continue
-                # Line starting with *Category Name:*
-                m = re.match(r'^\*([^*:\n]+):\*\s*(.*)', line)
-                if m:
-                    current_cat = re.sub(r'[*\\\n\r]', '', m.group(1)).strip()
-                    raw_items = m.group(2).rstrip('\\').strip()
-                    items = [
+    for heading, body in sections.items():
+        u = heading.upper()
+        if any(w in u for w in ["SUMMARY", "PROFILE", "ABOUT", "OVERVIEW", "OBJECTIVE"]) and not categorized_sections["summary"]:
+            categorized_sections["summary"] = (heading, body)
+            res["custom_headings"]["summary"] = heading
+        elif any(w in u for w in ["SKILL", "COMPETENC", "EXPERTISE", "TOOLKIT", "PROFICIENC", "TECHNOLOG"]) and not categorized_sections["skills"]:
+            categorized_sections["skills"] = (heading, body)
+            res["custom_headings"]["skills"] = heading
+        elif any(w in u for w in ["EXPERIENCE", "EMPLOYMENT", "HISTORY", "CAREER", "WORK"]) and not categorized_sections["experience"]:
+            categorized_sections["experience"] = (heading, body)
+            res["custom_headings"]["experience"] = heading
+        elif any(w in u for w in ["PROJECT", "PORTFOLIO"]) and not categorized_sections["projects"]:
+            categorized_sections["projects"] = (heading, body)
+            res["custom_headings"]["projects"] = heading
+        elif any(w in u for w in ["EDUCATION", "ACADEMIC", "QUALIFICATION"]):
+            if "CERTIF" in u or "LICENSE" in u:
+                categorized_sections["education"] = (heading, body)
+                res["custom_headings"]["education"] = heading
+                res["separate_education_and_certs"] = False
+            elif not categorized_sections["education"]:
+                categorized_sections["education"] = (heading, body)
+                res["custom_headings"]["education"] = heading
+        elif any(w in u for w in ["CERTIF", "LICENSE", "CREDENTIAL"]) and not categorized_sections["certifications"]:
+            categorized_sections["certifications"] = (heading, body)
+            res["custom_headings"]["certifications"] = heading
+            res["separate_education_and_certs"] = True
+        elif any(w in u for w in ["HONOR", "AWARD", "ACHIEVEMENT", "RECOGNITION"]) and not categorized_sections["achievements"]:
+            categorized_sections["achievements"] = (heading, body)
+            res["custom_headings"]["achievements"] = heading
+        else:
+            categorized_sections["additional"].append((heading, body))
+
+    # 4. Summary
+    if categorized_sections["summary"]:
+        h, body = categorized_sections["summary"]
+        clean_summary = re.sub(r'#v\([^)]*\)', '', body).strip()
+        clean_summary = re.sub(r'^\s*\\\s*', '', clean_summary)
+        if clean_summary:
+            res["summary"] = clean_summary
+
+    # 5. Skills
+    if categorized_sections["skills"]:
+        h, body = categorized_sections["skills"]
+        skills_dict = {}
+        current_cat = None
+        for line in body.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or line.startswith("]"):
+                continue
+            m = re.match(r'^\*([^*:\n]+):\*\s*(.*)', line)
+            if m:
+                current_cat = re.sub(r'[*\\\n\r]', '', m.group(1)).strip()
+                raw_items = m.group(2).rstrip('\\').strip()
+                items = [
+                    re.sub(r'[*\\\n\r]', '', it).strip()
+                    for it in re.split(r'[,•]\s*', raw_items)
+                    if re.sub(r'[*\\\n\r]', '', it).strip()
+                    and not it.strip().startswith("#")
+                    and not it.strip().startswith("]")
+                ]
+                if current_cat:
+                    skills_dict[current_cat] = items
+            elif current_cat and line:
+                if not line.startswith("#") and not line.startswith("]"):
+                    raw_items = line.rstrip('\\').strip()
+                    extra_items = [
                         re.sub(r'[*\\\n\r]', '', it).strip()
                         for it in re.split(r'[,•]\s*', raw_items)
                         if re.sub(r'[*\\\n\r]', '', it).strip()
                         and not it.strip().startswith("#")
                         and not it.strip().startswith("]")
                     ]
-                    if current_cat:
-                        skills_dict[current_cat] = items
-                elif current_cat and line:
-                    if not line.startswith("#") and not line.startswith("]"):
-                        raw_items = line.rstrip('\\').strip()
-                        extra_items = [
-                            re.sub(r'[*\\\n\r]', '', it).strip()
-                            for it in re.split(r'[,•]\s*', raw_items)
-                            if re.sub(r'[*\\\n\r]', '', it).strip()
-                            and not it.strip().startswith("#")
-                            and not it.strip().startswith("]")
-                        ]
-                        if extra_items:
-                            skills_dict[current_cat].extend(extra_items)
-            if skills_dict:
-                res["skills"] = sanitize_skills_dict(skills_dict)
-            break
+                    if extra_items:
+                        skills_dict[current_cat].extend(extra_items)
+        if skills_dict:
+            res["skills"] = sanitize_skills_dict(skills_dict)
 
     # 6. Professional Experience
-    for h in ["PROFESSIONAL EXPERIENCE", "EXPERIENCE"]:
-        if h in sections:
-            exp_list = []
-            exp_body = sections[h]
-            role_blocks = re.split(r'(?:^|\n)\s*(?=\*[^*]+\*)', exp_body.strip())
-            for rb in role_blocks:
-                rb = rb.strip()
-                header_m = re.search(r'^\*([^*]+)\*(?:\s*—\s*([^\n\\]+))?', rb)
-                if not header_m:
+    if categorized_sections["experience"]:
+        h, exp_body = categorized_sections["experience"]
+        exp_list = []
+        role_blocks = re.split(r'(?:^|\n)\s*(?=\*[^*]+\*)', exp_body.strip())
+        for rb in role_blocks:
+            rb = rb.strip()
+            header_m = re.search(r'^\*([^*]+)\*(?:\s*—\s*([^\n\\]+))?', rb)
+            if not header_m:
+                continue
+            title = header_m.group(1).strip()
+            company = header_m.group(2).strip() if header_m.group(2) else ""
+            
+            meta_m = re.search(r'#text\([^\[\]]*\)\[(.*?)\]', rb)
+            meta_str = meta_m.group(1).strip() if meta_m else ""
+            dates = ""
+            loc = ""
+            if "|" in meta_str:
+                dates, loc = [p.strip() for p in meta_str.split("|", 1)]
+            else:
+                dates = meta_str
+                
+            bullets = []
+            achs = []
+            is_ach = False
+            for line in rb.splitlines():
+                line = line.strip()
+                if "Key Achievements" in line:
+                    is_ach = True
                     continue
-                title = header_m.group(1).strip()
-                company = header_m.group(2).strip() if header_m.group(2) else ""
-                
-                meta_m = re.search(r'#text\([^\[\]]*\)\[(.*?)\]', rb)
-                meta_str = meta_m.group(1).strip() if meta_m else ""
-                dates = ""
-                loc = ""
-                if "|" in meta_str:
-                    dates, loc = [p.strip() for p in meta_str.split("|", 1)]
-                else:
-                    dates = meta_str
-                    
-                bullets = []
-                achs = []
-                is_ach = False
-                for line in rb.splitlines():
-                    line = line.strip()
-                    if "Key Achievements" in line:
-                        is_ach = True
-                        continue
-                    if line.startswith("- "):
-                        b_text = re.sub(r'^- \s*', '', line).strip()
-                        b_text = re.sub(r'#text\(style:\s*"italic"\)\[(.*?)\]', r'\1', b_text)
-                        b_text = re.sub(r'\]$', '', b_text).strip()
-                        if is_ach:
-                            achs.append(b_text)
-                        else:
-                            bullets.append(b_text)
-                
-                exp_list.append({
-                    "title": title,
-                    "company": company,
-                    "dates": dates,
-                    "location": loc,
-                    "bullets": bullets,
-                    "achievements": achs
-                })
-            if exp_list:
-                res["experience"] = exp_list
-            break
+                if line.startswith("- "):
+                    b_text = re.sub(r'^- \s*', '', line).strip()
+                    b_text = re.sub(r'#text\(style:\s*"italic"\)\[(.*?)\]', r'\1', b_text)
+                    b_text = re.sub(r'\]$', '', b_text).strip()
+                    if is_ach:
+                        achs.append(b_text)
+                    else:
+                        bullets.append(b_text)
+            
+            exp_list.append({
+                "title": title,
+                "company": company,
+                "dates": dates,
+                "location": loc,
+                "bullets": bullets,
+                "achievements": achs
+            })
+        if exp_list:
+            res["experience"] = exp_list
 
-    # 7. Projects (Multi-Project Support)
-    for h in ["PROJECTS", "PROJECT", "TECHNICAL PROJECTS"]:
-        if h in sections:
-            proj_list = []
-            proj_body = sections[h]
-            p_blocks = re.split(r'(?:^|\n)\s*(?=\*[^*]+\*)', proj_body.strip())
-            for pb in p_blocks:
-                pb = pb.strip()
-                p_header_m = re.search(r'^\*([^*]+)\*', pb)
-                if not p_header_m:
-                    continue
-                p_title = p_header_m.group(1).strip()
-                
-                tech_m = re.search(r'#text\([^)]*italic[^)]*\)\[(?:Technologies:\s*)?(.*?)\]', pb)
-                p_tech = tech_m.group(1).strip() if tech_m else ""
-                
-                p_bullets = []
-                for line in pb.splitlines():
-                    line = line.strip()
-                    if line.startswith("- "):
-                        clean_b = re.sub(r'^- \s*', '', line).strip()
-                        clean_b = re.sub(r'\]$', '', clean_b).strip()
-                        if clean_b:
-                            p_bullets.append(clean_b)
-                        
-                if p_title or p_bullets:
-                    proj_list.append({
-                        "title": p_title,
-                        "technologies": p_tech,
-                        "bullets": p_bullets
-                    })
-            if proj_list:
-                res["projects"] = proj_list
-            break
-
-    # 8. Education
-    for h in ["EDUCATION", "EDUCATION & CERTIFICATIONS"]:
-        if h in sections:
-            edu_list = []
-            edu_body = sections[h]
-            e_blocks = re.split(r'(?:^|\n)\s*(?=\*[^*]+\*)', edu_body.strip())
-            for eb in e_blocks:
-                eb = eb.strip()
-                e_header_m = re.match(r'^\*([^*]+)\*(?:\s*—\s*([^|\n\\]+))?(?:\s*\|\s*([^\n\\]+))?', eb)
-                if not e_header_m:
-                    continue
-                inst = e_header_m.group(1).strip()
-                deg = e_header_m.group(2).strip() if e_header_m.group(2) else ""
-                yr = e_header_m.group(3).strip() if e_header_m.group(3) else ""
-                
-                det_m = re.search(r'#text\([^\[\]]*\)\[(.*?)\]', eb)
-                details = det_m.group(1).strip() if det_m else ""
-                
-                if inst or deg:
-                    edu_list.append({
-                        "institution": inst,
-                        "degree": deg,
-                        "year": yr,
-                        "details": details
-                    })
-            if edu_list:
-                res["education"] = edu_list
-            break
-
-    # 9. Certifications
-    for h in ["CERTIFICATIONS & LICENSES", "CERTIFICATIONS"]:
-        if h in sections:
-            cert_list = []
-            for line in sections[h].splitlines():
+    # 7. Projects
+    if categorized_sections["projects"]:
+        h, proj_body = categorized_sections["projects"]
+        proj_list = []
+        p_blocks = re.split(r'(?:^|\n)\s*(?=\*[^*]+\*)', proj_body.strip())
+        for pb in p_blocks:
+            pb = pb.strip()
+            p_header_m = re.search(r'^\*([^*]+)\*', pb)
+            if not p_header_m:
+                continue
+            p_title = p_header_m.group(1).strip()
+            
+            tech_m = re.search(r'#text\([^)]*italic[^)]*\)\[(?:Technologies:\s*)?(.*?)\]', pb)
+            p_tech = tech_m.group(1).strip() if tech_m else ""
+            
+            p_bullets = []
+            for line in pb.splitlines():
                 line = line.strip()
                 if line.startswith("- "):
-                    clean_c = re.sub(r'^- \s*', '', line).strip()
-                    clean_c = re.sub(r'\]$', '', clean_c).strip()
-                    if clean_c:
-                        cert_list.append(clean_c)
-            if cert_list:
-                res["certifications"] = cert_list
-            res["separate_education_and_certs"] = True
-            break
+                    clean_b = re.sub(r'^- \s*', '', line).strip()
+                    clean_b = re.sub(r'\]$', '', clean_b).strip()
+                    if clean_b:
+                        p_bullets.append(clean_b)
+                    
+            if p_title or p_bullets:
+                proj_list.append({
+                    "title": p_title,
+                    "technologies": p_tech,
+                    "bullets": p_bullets
+                })
+        if proj_list:
+            res["projects"] = proj_list
+
+    # 8. Education
+    if categorized_sections["education"]:
+        h, edu_body = categorized_sections["education"]
+        edu_list = []
+        e_blocks = re.split(r'(?:^|\n)\s*(?=\*[^*]+\*)', edu_body.strip())
+        for eb in e_blocks:
+            eb = eb.strip()
+            e_header_m = re.match(r'^\*([^*]+)\*(?:\s*—\s*([^|\n\\]+))?(?:\s*\|\s*([^\n\\]+))?', eb)
+            if not e_header_m:
+                continue
+            inst = e_header_m.group(1).strip()
+            deg = e_header_m.group(2).strip() if e_header_m.group(2) else ""
+            yr = e_header_m.group(3).strip() if e_header_m.group(3) else ""
+            
+            det_m = re.search(r'#text\([^\[\]]*\)\[(.*?)\]', eb)
+            details = det_m.group(1).strip() if det_m else ""
+            
+            if inst or deg:
+                edu_list.append({
+                    "institution": inst,
+                    "degree": deg,
+                    "year": yr,
+                    "details": details
+                })
+        if edu_list:
+            res["education"] = edu_list
+
+    # 9. Certifications
+    if categorized_sections["certifications"]:
+        h, cert_body = categorized_sections["certifications"]
+        cert_list = []
+        for line in cert_body.splitlines():
+            line = line.strip()
+            if line.startswith("- "):
+                clean_c = re.sub(r'^- \s*', '', line).strip()
+                clean_c = re.sub(r'\]$', '', clean_c).strip()
+                if clean_c:
+                    cert_list.append(clean_c)
+        if cert_list:
+            res["certifications"] = cert_list
+        res["separate_education_and_certs"] = True
+
+    # 10. Achievements
+    if categorized_sections["achievements"]:
+        h, ach_body = categorized_sections["achievements"]
+        ach_list = []
+        for line in ach_body.splitlines():
+            line = line.strip()
+            if line.startswith("- "):
+                clean_a = re.sub(r'^- \s*', '', line).strip()
+                clean_a = re.sub(r'\]$', '', clean_a).strip()
+                if clean_a:
+                    ach_list.append(clean_a)
+        if ach_list:
+            res["achievements"] = ach_list
+
+    # 11. Additional / Custom Sections
+    if categorized_sections["additional"]:
+        add_sections_list = []
+        for add_h, add_b in categorized_sections["additional"]:
+            lines = [l.strip() for l in add_b.splitlines() if l.strip()]
+            if lines:
+                add_sections_list.append({
+                    "title": add_h,
+                    "content": lines
+                })
+        if add_sections_list:
+            res["additional_sections"] = add_sections_list
 
     return res
 

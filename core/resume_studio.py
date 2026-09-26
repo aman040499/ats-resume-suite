@@ -47,7 +47,9 @@ def _sync_typst_after_edit(active_resume: Dict[str, Any], session_prefix: str) -
         pagebreak_before_projects=active_resume.get("pagebreak_before_projects", False),
         pagebreak_before_education=active_resume.get("pagebreak_before_education", False),
         pagebreak_before_certs=active_resume.get("pagebreak_before_certs", False),
-        pagebreak_before_achievements=active_resume.get("pagebreak_before_achievements", False)
+        pagebreak_before_achievements=active_resume.get("pagebreak_before_achievements", False),
+        custom_headings=active_resume.get("custom_headings"),
+        additional_sections=active_resume.get("additional_sections")
     )
     active_resume["raw_typst_code"] = new_typst
     new_ver = active_resume.get("typst_version", 0) + 1
@@ -137,6 +139,8 @@ def render_resume_studio_tab(
             "education": copy.deepcopy(profile.get("education", [])),
             "certifications": copy.deepcopy(profile.get("certifications", [])),
             "achievements": copy.deepcopy(profile.get("achievements", [])),
+            "custom_headings": copy.deepcopy(profile.get("custom_headings", {})),
+            "additional_sections": copy.deepcopy(profile.get("additional_sections", [])),
             "section_spacing": "0.35em",
             "font_size": "9.1pt",
             "top_margin": "1.1cm",
@@ -152,7 +156,7 @@ def render_resume_studio_tab(
                 with open(typ_path, "r", encoding="utf-8") as f:
                     disk_code = f.read()
                 disk_parsed = parse_typst_to_resume_dict(disk_code, baseline=resume_data)
-                for field in ["personal", "summary", "skills", "experience", "projects", "education", "certifications", "achievements"]:
+                for field in ["personal", "summary", "skills", "experience", "projects", "education", "certifications", "achievements", "custom_headings", "additional_sections"]:
                     if disk_parsed.get(field):
                         resume_data[field] = disk_parsed[field]
                 if "separate_education_and_certs" in disk_parsed:
@@ -199,6 +203,10 @@ def render_resume_studio_tab(
     # =========================================================================
     # TAB 1: LIVE VISUAL PREVIEW & 1-CLICK PDF DOWNLOAD
     # =========================================================================
+    cand_name_for_dl = active_resume.get("personal", {}).get("name", "Candidate")
+    safe_cand_name = re.sub(r'[^a-zA-Z0-9_\- ]', '', str(cand_name_for_dl)).strip().replace(' ', '_')
+    dl_pdf_filename = f"{safe_cand_name or 'Candidate'}_Resume.pdf"
+
     with tab_view:
         col_dl1, col_rec1 = st.columns([3.5, 1.2])
         with col_dl1:
@@ -207,7 +215,7 @@ def render_resume_studio_tab(
                     st.download_button(
                         label="📥 Download ATS-Friendly Resume PDF",
                         data=f,
-                        file_name="Pahuja, Aman_Resume.pdf",
+                        file_name=dl_pdf_filename,
                         mime="application/pdf",
                         type="primary",
                         use_container_width=True
@@ -339,7 +347,7 @@ def render_resume_studio_tab(
                 st.download_button(
                     label="📥 Download ATS-Friendly Resume PDF",
                     data=f,
-                    file_name="Pahuja, Aman_Resume.pdf",
+                    file_name=dl_pdf_filename,
                     mime="application/pdf",
                     key=f"{session_prefix}_dl_bottom",
                     use_container_width=True
@@ -455,10 +463,13 @@ def render_resume_studio_tab(
                     key=f"{session_prefix}_chk_underline_links"
                 )
 
-            st.markdown("---")
+            curr_headings = active_resume.setdefault("custom_headings", {})
 
             # 2. Professional Summary
             st.markdown("#### 📝 2. Professional Executive Summary")
+            col_sh1, col_sh2 = st.columns([1.8, 3])
+            with col_sh1:
+                new_h_summary = st.text_input("Section Heading Title (Summary)", value=curr_headings.get("summary", "PROFESSIONAL SUMMARY"), key=f"{session_prefix}_h_summary")
             new_summary = st.text_area(
                 "Executive Summary Text",
                 value=active_resume.get("summary", ""),
@@ -470,6 +481,9 @@ def render_resume_studio_tab(
 
             # 3. Technical Skills by Category
             st.markdown("#### 🛠️ 3. Technical Skills (Categories & Skills)")
+            col_skh1, col_skh2 = st.columns([1.8, 3])
+            with col_skh1:
+                new_h_skills = st.text_input("Section Heading Title (Skills)", value=curr_headings.get("skills", "TECHNICAL SKILLS"), key=f"{session_prefix}_h_skills")
             skills_dict = sanitize_skills_dict(active_resume.get("skills", {}))
             active_resume["skills"] = skills_dict
             edited_skills = {}
@@ -519,6 +533,9 @@ def render_resume_studio_tab(
             # 4. Professional Experience & Achievements
             st.markdown("#### 💼 4. Professional Experience & Key Achievements")
             st.caption("Edit job titles, dates, locations, bullet points, and Key Achievements. Leave Key Achievements blank to remove them entirely.")
+            col_exh1, col_exh2 = st.columns([1.8, 3])
+            with col_exh1:
+                new_h_exp = st.text_input("Section Heading Title (Experience)", value=curr_headings.get("experience", "PROFESSIONAL EXPERIENCE"), key=f"{session_prefix}_h_exp")
 
             edited_experience = copy.deepcopy(active_resume.get("experience", []))
             for exp_idx, role in enumerate(edited_experience):
@@ -567,6 +584,9 @@ def render_resume_studio_tab(
             # 5. Technical Projects
             st.markdown("#### 🚀 5. Technical Projects")
             st.caption("Edit existing projects, remove any unwanted project, or use the dedicated slots below to add up to 2 new technical projects.")
+            col_prh1, col_prh2 = st.columns([1.8, 3])
+            with col_prh1:
+                new_h_proj = st.text_input("Section Heading Title (Projects)", value=curr_headings.get("projects", "PROJECTS"), key=f"{session_prefix}_h_proj")
             projects_list = copy.deepcopy(active_resume.get("projects", []))
             kept_projects = []
             for p_idx, proj in enumerate(projects_list):
@@ -655,6 +675,11 @@ def render_resume_studio_tab(
 
             # 6. Education & Certifications
             st.markdown("#### 🎓 6. Education & Certifications")
+            col_edh1, col_edh2 = st.columns(2)
+            with col_edh1:
+                new_h_edu = st.text_input("Section Heading Title (Education)", value=curr_headings.get("education", "EDUCATION"), key=f"{session_prefix}_h_edu")
+            with col_edh2:
+                new_h_certs = st.text_input("Section Heading Title (Certifications)", value=curr_headings.get("certifications", "CERTIFICATIONS & LICENSES"), key=f"{session_prefix}_h_certs")
             education_list = copy.deepcopy(active_resume.get("education", []))
             if not education_list:
                 education_list = [{"institution": "", "degree": "", "year": "", "details": ""}]
@@ -764,8 +789,69 @@ def render_resume_studio_tab(
 
             st.markdown("---")
 
-            # 7. Spacing & Layout Customizer (Leave Space Anywhere)
-            st.markdown("#### 📐 7. Spacing & Layout Controls (Adjust Breathing Room)")
+            # 7. Additional / Custom Sections (Volunteer Experience, Languages, Publications, etc.)
+            st.markdown("#### 📑 7. Additional & Custom Sections (Volunteer, Publications, Languages, etc.)")
+            st.caption("Add or customize any extra section. Sections are rendered in the professional house green heading format.")
+            
+            existing_add_sections = copy.deepcopy(active_resume.get("additional_sections", []))
+            edited_add_sections = []
+            
+            if existing_add_sections:
+                for a_idx, a_sec in enumerate(existing_add_sections):
+                    st.markdown(f"**Section #{a_idx+1}:**")
+                    col_as1, col_as2 = st.columns([4, 1])
+                    with col_as1:
+                        a_title = st.text_input(f"Section Heading Title #{a_idx+1}", value=a_sec.get("title", ""), key=f"{session_prefix}_add_sec_title_{a_idx}")
+                    with col_as2:
+                        st.write("")
+                        del_sec = st.checkbox(f"🗑️ Delete #{a_idx+1}", key=f"{session_prefix}_del_add_sec_{a_idx}")
+                    
+                    raw_content = a_sec.get("content", [])
+                    if isinstance(raw_content, list):
+                        c_text = "\n".join(str(item) for item in raw_content)
+                    else:
+                        c_text = str(raw_content)
+                        
+                    a_content = st.text_area(
+                        f"Section Content #{a_idx+1} (Bullet points start with - or •)",
+                        value=c_text,
+                        height=100,
+                        key=f"{session_prefix}_add_sec_content_{a_idx}"
+                    )
+                    if not del_sec and a_title.strip() and a_content.strip():
+                        c_lines = [line.strip() for line in a_content.splitlines() if line.strip()]
+                        edited_add_sections.append({
+                            "title": a_title.strip().upper(),
+                            "content": c_lines
+                        })
+            
+            # Slot to add a brand new custom section
+            st.markdown("##### ➕ Add a New Custom Section")
+            c_as_add1, c_as_add2 = st.columns([2, 3])
+            with c_as_add1:
+                new_sec_title = st.text_input(
+                    "New Section Title",
+                    placeholder="e.g. VOLUNTEER EXPERIENCE or LANGUAGES",
+                    key=f"{session_prefix}_new_custom_sec_title"
+                )
+            with c_as_add2:
+                new_sec_content = st.text_area(
+                    "New Section Content (One bullet per line)",
+                    placeholder="• Community Mentor at Local STEM Program (2022 – Present)\n• English (Fluent), French (Professional Working Proficiency)",
+                    height=80,
+                    key=f"{session_prefix}_new_custom_sec_content"
+                )
+            if new_sec_title.strip() and new_sec_content.strip():
+                clean_new_lines = [l.strip() for l in new_sec_content.splitlines() if l.strip()]
+                edited_add_sections.append({
+                    "title": new_sec_title.strip().upper(),
+                    "content": clean_new_lines
+                })
+
+            st.markdown("---")
+
+            # 8. Spacing & Layout Customizer (Leave Space Anywhere)
+            st.markdown("#### 📐 8. Spacing & Layout Controls (Adjust Breathing Room)")
             c_sp1, c_sp2, c_sp3 = st.columns(3)
             with c_sp1:
                 new_spacing = st.selectbox(
@@ -856,6 +942,19 @@ def render_resume_studio_tab(
                             "bullets": p_b
                         })
                 active_resume["projects"] = clean_projects_list
+
+                # Clean education list
+                clean_edu_list = []
+                for edu in education_list:
+                    if edu.get("institution", "").strip() or edu.get("degree", "").strip():
+                        clean_edu_list.append({
+                            "institution": edu.get("institution", "").strip(),
+                            "degree": edu.get("degree", "").strip(),
+                            "year": str(edu.get("year", "")).strip(),
+                            "details": edu.get("details", "").strip()
+                        })
+                active_resume["education"] = clean_edu_list
+
                 clean_unique_certs = []
                 seen_certs = set()
                 for c in edited_certs:
@@ -865,6 +964,20 @@ def render_resume_studio_tab(
                         seen_certs.add(norm_c)
                         clean_unique_certs.append(clean_c)
                 active_resume["certifications"] = clean_unique_certs
+
+                # Save custom heading titles
+                active_resume["custom_headings"] = {
+                    "summary": (new_h_summary.strip() if new_h_summary.strip() else "PROFESSIONAL SUMMARY").upper(),
+                    "skills": (new_h_skills.strip() if new_h_skills.strip() else "TECHNICAL SKILLS").upper(),
+                    "experience": (new_h_exp.strip() if new_h_exp.strip() else "PROFESSIONAL EXPERIENCE").upper(),
+                    "projects": (new_h_proj.strip() if new_h_proj.strip() else "PROJECTS").upper(),
+                    "education": (new_h_edu.strip() if new_h_edu.strip() else "EDUCATION").upper(),
+                    "certifications": (new_h_certs.strip() if new_h_certs.strip() else "CERTIFICATIONS & LICENSES").upper()
+                }
+
+                # Save additional / custom sections
+                active_resume["additional_sections"] = edited_add_sections
+
                 active_resume["separate_education_and_certs"] = separate_edu_certs
                 active_resume["section_spacing"] = new_spacing.split()[0]
                 active_resume["font_size"] = new_font_size.split()[0]
@@ -875,7 +988,7 @@ def render_resume_studio_tab(
                 active_resume["pagebreak_before_projects"] = pb_proj
                 active_resume["pagebreak_before_experience"] = pb_exp
 
-                # Clear category, education, cert, and project add slots so they are blank on next render
+                # Clear category, education, cert, project, and custom section add slots so they are blank on next render
                 for slot_i in range(1, 4):
                     st.session_state.pop(f"{session_prefix}_new_cat_name_{slot_i}", None)
                     st.session_state.pop(f"{session_prefix}_new_cat_skills_{slot_i}", None)
@@ -885,13 +998,15 @@ def render_resume_studio_tab(
                     st.session_state.pop(f"{session_prefix}_add_proj_tech_{slot_i}", None)
                     st.session_state.pop(f"{session_prefix}_add_proj_bullets_{slot_i}", None)
                 for k in list(st.session_state.keys()):
-                    if k.startswith(f"{session_prefix}_del_proj_"):
+                    if k.startswith(f"{session_prefix}_del_proj_") or k.startswith(f"{session_prefix}_del_add_sec_"):
                         st.session_state.pop(k, None)
                 st.session_state.pop(f"{session_prefix}_add_edu_inst", None)
                 st.session_state.pop(f"{session_prefix}_add_edu_deg", None)
                 st.session_state.pop(f"{session_prefix}_add_edu_yr", None)
                 st.session_state.pop(f"{session_prefix}_add_edu_det", None)
                 st.session_state.pop(f"{session_prefix}_chk_use_bulk_certs", None)
+                st.session_state.pop(f"{session_prefix}_new_custom_sec_title", None)
+                st.session_state.pop(f"{session_prefix}_new_custom_sec_content", None)
 
                 try:
                     with st.spinner("Recompiling tailored PDF and generating preview..."):
@@ -959,7 +1074,9 @@ def render_resume_studio_tab(
                             pagebreak_before_projects=updated.get("pagebreak_before_projects", False),
                             pagebreak_before_education=updated.get("pagebreak_before_education", False),
                             pagebreak_before_certs=updated.get("pagebreak_before_certs", False),
-                            pagebreak_before_achievements=updated.get("pagebreak_before_achievements", False)
+                            pagebreak_before_achievements=updated.get("pagebreak_before_achievements", False),
+                            custom_headings=updated.get("custom_headings"),
+                            additional_sections=updated.get("additional_sections")
                         )
                         updated["raw_typst_code"] = new_typst
                         updated["typst_version"] = updated.get("typst_version", 0) + 1
@@ -994,7 +1111,9 @@ def render_resume_studio_tab(
                             pagebreak_before_projects=updated.get("pagebreak_before_projects", False),
                             pagebreak_before_education=updated.get("pagebreak_before_education", False),
                             pagebreak_before_certs=updated.get("pagebreak_before_certs", False),
-                            pagebreak_before_achievements=updated.get("pagebreak_before_achievements", False)
+                            pagebreak_before_achievements=updated.get("pagebreak_before_achievements", False),
+                            custom_headings=updated.get("custom_headings"),
+                            additional_sections=updated.get("additional_sections")
                         )
                         updated["raw_typst_code"] = new_typst
                         updated["typst_version"] = updated.get("typst_version", 0) + 1
@@ -1032,7 +1151,9 @@ def render_resume_studio_tab(
                 pagebreak_before_projects=active_resume.get("pagebreak_before_projects", False),
                 pagebreak_before_education=active_resume.get("pagebreak_before_education", False),
                 pagebreak_before_certs=active_resume.get("pagebreak_before_certs", False),
-                pagebreak_before_achievements=active_resume.get("pagebreak_before_achievements", False)
+                pagebreak_before_achievements=active_resume.get("pagebreak_before_achievements", False),
+                custom_headings=active_resume.get("custom_headings"),
+                additional_sections=active_resume.get("additional_sections")
             )
 
         typst_ver = active_resume.get("typst_version", 0)

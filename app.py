@@ -165,12 +165,15 @@ if profile is None:
     tab_up_pdf, tab_up_paste = st.tabs(["📤 Upload PDF Resume", "📋 Paste Plain Text"])
     
     with tab_up_pdf:
-        up_file = st.file_uploader("Upload your resume in PDF format:", type=["pdf"], key="main_resume_pdf_uploader")
+        up_file = st.file_uploader("Upload your resume in PDF format (Max 5MB):", type=["pdf"], key="main_resume_pdf_uploader")
         if up_file is not None:
-            f_bytes = up_file.getvalue()
-            f_hash = hashlib.md5(f_bytes).hexdigest()
-            if st.session_state.get("main_uploaded_hash") != f_hash:
-                with st.spinner(f"Analyzing resume with {'Google Gemini' if not is_on_premises else 'Local Engine'}..."):
+            if up_file.size > 5 * 1024 * 1024:
+                st.error("⚠️ File size exceeds 5MB limit. Please upload a PDF under 5MB.")
+            else:
+                f_bytes = up_file.getvalue()
+                f_hash = hashlib.md5(f_bytes).hexdigest()
+                if st.session_state.get("main_uploaded_hash") != f_hash:
+                    with st.spinner(f"Analyzing resume with {'Google Gemini' if not is_on_premises else 'Local Engine'}..."):
                     raw_text = extract_text_from_pdf(f_bytes)
                     pdf_links = extract_links_from_pdf(f_bytes)
                     if not raw_text.strip():
@@ -228,12 +231,15 @@ else:
         """, unsafe_allow_html=True)
     with col_pill2:
         with st.expander("🔄 Switch Resume", expanded=False):
-            up_new = st.file_uploader("Upload new PDF:", type=["pdf"], key="switch_resume_uploader")
+            up_new = st.file_uploader("Upload new PDF (Max 5MB):", type=["pdf"], key="switch_resume_uploader")
             if up_new is not None:
-                new_bytes = up_new.getvalue()
-                new_hash = hashlib.md5(new_bytes).hexdigest()
-                if st.session_state.get("switch_uploaded_hash") != new_hash:
-                    purge_resume_session_cache()
+                if up_new.size > 5 * 1024 * 1024:
+                    st.error("⚠️ File size exceeds 5MB limit. Please upload a PDF under 5MB.")
+                else:
+                    new_bytes = up_new.getvalue()
+                    new_hash = hashlib.md5(new_bytes).hexdigest()
+                    if st.session_state.get("switch_uploaded_hash") != new_hash:
+                        purge_resume_session_cache()
                     raw_text = extract_text_from_pdf(new_bytes)
                     pdf_links = extract_links_from_pdf(new_bytes)
                     parsed = parse_resume_profile(raw_text, engine=active_engine_name, api_key=api_key, pdf_links=pdf_links)

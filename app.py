@@ -174,19 +174,19 @@ if profile is None:
                 f_hash = hashlib.md5(f_bytes).hexdigest()
                 if st.session_state.get("main_uploaded_hash") != f_hash:
                     with st.spinner(f"Analyzing resume with {'Google Gemini' if not is_on_premises else 'Local Engine'}..."):
-                    raw_text = extract_text_from_pdf(f_bytes)
-                    pdf_links = extract_links_from_pdf(f_bytes)
-                    if not raw_text.strip():
-                        st.error("Could not extract text from this PDF. Please use the 'Paste Plain Text' tab.")
-                    else:
-                        purge_resume_session_cache()
-                        parsed = parse_resume_profile(raw_text, engine=active_engine_name, api_key=api_key, pdf_links=pdf_links)
-                        st.session_state["resume_profile"] = parsed
-                        st.session_state["raw_resume_text"] = raw_text
-                        st.session_state["uploaded_filename"] = up_file.name
-                        st.session_state["main_uploaded_hash"] = f_hash
-                        st.success(f"✅ Resume parsed! Candidate: {parsed.get('personal', {}).get('name', 'Candidate')} | Domain: {parsed.get('domain')}")
-                        st.rerun()
+                        raw_text = extract_text_from_pdf(f_bytes)
+                        pdf_links = extract_links_from_pdf(f_bytes)
+                        if not raw_text.strip():
+                            st.error("Could not extract text from this PDF. Please use the 'Paste Plain Text' tab.")
+                        else:
+                            purge_resume_session_cache()
+                            parsed = parse_resume_profile(raw_text, engine=active_engine_name, api_key=api_key, pdf_links=pdf_links)
+                            st.session_state["resume_profile"] = parsed
+                            st.session_state["raw_resume_text"] = raw_text
+                            st.session_state["uploaded_filename"] = up_file.name
+                            st.session_state["main_uploaded_hash"] = f_hash
+                            st.success(f"✅ Resume parsed! Candidate: {parsed.get('personal', {}).get('name', 'Candidate')} | Domain: {parsed.get('domain')}")
+                            st.rerun()
 
     with tab_up_paste:
         p_text = st.text_area("Paste plain resume text here:", height=180, placeholder="Paste your resume content, experience, education, and skills...", key="main_resume_paste_area")
@@ -240,14 +240,14 @@ else:
                     new_hash = hashlib.md5(new_bytes).hexdigest()
                     if st.session_state.get("switch_uploaded_hash") != new_hash:
                         purge_resume_session_cache()
-                    raw_text = extract_text_from_pdf(new_bytes)
-                    pdf_links = extract_links_from_pdf(new_bytes)
-                    parsed = parse_resume_profile(raw_text, engine=active_engine_name, api_key=api_key, pdf_links=pdf_links)
-                    st.session_state["resume_profile"] = parsed
-                    st.session_state["raw_resume_text"] = raw_text
-                    st.session_state["uploaded_filename"] = up_new.name
-                    st.session_state["switch_uploaded_hash"] = new_hash
-                    st.rerun()
+                        raw_text = extract_text_from_pdf(new_bytes)
+                        pdf_links = extract_links_from_pdf(new_bytes)
+                        parsed = parse_resume_profile(raw_text, engine=active_engine_name, api_key=api_key, pdf_links=pdf_links)
+                        st.session_state["resume_profile"] = parsed
+                        st.session_state["raw_resume_text"] = raw_text
+                        st.session_state["uploaded_filename"] = up_new.name
+                        st.session_state["switch_uploaded_hash"] = new_hash
+                        st.rerun()
             if st.button("Clear Candidate", key="btn_clear_candidate", use_container_width=True):
                 purge_resume_session_cache()
                 st.rerun()
